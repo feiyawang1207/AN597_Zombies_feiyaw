@@ -1,0 +1,399 @@
+---
+title: "Feiyaw_OriginalHomeworkCode_03"
+author: "Feiya Wang"
+date: "10/9/2019"
+output: html_document
+---
+***
+
+## Homework 3
+
+***
+Introduction: This is the code for [Homework 03](https://fuzzyatelin.github.io/bioanth-stats/homework-03.html), on week 5 of AN597
+
+>Load in the dataset “zombies.csv” from Dr.schimitt GitHub repo.This data includes the first name, last name, and gender of the entire population of 1000 people who have survived the zombie apocalypse and are now ekeing out an existence somewhere on the East Coast, along with several other variables (height, weight, age, number of years of education, number of zombies they have killed, and college major.
+
+
+```{r}
+library (curl)
+#install package curl before this step to load a file from server.  
+
+f <- curl("https://github.com/fuzzyatelin/fuzzyatelin.github.io/raw/master/AN597_Fall19/zombies.csv")
+#load the file to the variable f
+
+d <- read.csv(f, header = TRUE, sep = ",", stringsAsFactors = FALSE)
+#read the .cvs file as a data frame in variable d.
+
+head(d)
+#show the top 6 rows of the data frame. 
+
+```
+
+# Question 1
+>Calculate the population mean and standard deviation for each quantitative random variable (height, weight, age, number of zombies killed, and years of education). NOTE: You will not want to use the built in var() and sd() commands as these are for samples."
+
+For calculation of population means, we can use function mean(). 
+For caculation of population standard deviation, we do not have an R function for that since sd() is only use for sample standard devation. Therefore, we first write a function in R to calculate the population mean. 
+```{r}
+psd<-function(x){sqrt(sum((x - mean(x))^2)/length(x))} 
+#function for population standard deviation. psd stand for population standard deviation
+```
+
+Then, we could build a table for the quantative variable's mean and standard deviation
+```{r}
+dq<-d[,c(5,6,7,8,10)]
+#only get  column 5,6,7,8,10 from the files to from a data frame that only contains the quantative variables.dq stand for quantative data  
+x<-lapply(dq,mean)
+#This is the function i find on website to take mean from data frame, since function mean() cannot use for data-frame strcuture variable, the lapply() will return a vector of function results of each columns in data frame.lapply will apply function to all of the column in data frame dq
+y<-lapply(dq, psd)
+#as above, also use lapply() and our function psd() to take population standard deviation
+table1<-cbind(x,y)
+#combine those two vector as a matrix
+colnames(table1)<-c("Mean","Population Standard Deviation")
+#name each row
+table1
+```
+If we want to display a nice table like excel format, here is the solution I find from Google
+```{r}
+library(DT)
+#install the package of DT before this step
+datatable(table1)
+```
+
+# Question 2
+>Use {ggplot} to make boxplots of each of these variables by gender.
+
+We frist build a function for all boxplots, all of them shoudl have x=gender, all the outlier color are red and the boxplot itself is dark blue.
+```{r}
+library(ggplot2)
+#install ggplot2 package before this step
+draw_boxplot<-function(dat){
+p <- ggplot(data=d, aes(x=gender, y=dat))
+#ggplot starting function
+p <- p + geom_boxplot(outlier.color = "red",color="dark blue")
+#make it into boxplot. normal data are in darkblue, outliers are in red
+return (p)
+}
+```
+Then, we apply the function for each quantative variable. 
+```{r}
+f1<-draw_boxplot(d$height)+ylab("Height")
+f2<-draw_boxplot(d$weight)+ylab("Weight")
+f3<-draw_boxplot(d$zombies_killed)+ylab("Number of Zombies killed")
+f4<-draw_boxplot(d$years_of_education)+ylab("Years of education")
+f5<-draw_boxplot(d$age)+ylab("Age")
+#apply the build function and add y axis lab to each graph
+```
+To make it look nice, we combine those graph into one using ggarrange() in package ggpubr. label them by annotate_figure.
+```{r}
+library(ggpubr)
+#install package ggpubr before this step.
+figure <- ggarrange(f1,f2,f3,f4,f5,
+                    ncol = 3, nrow = 2)
+# use this unction to combine 5 ggplot into one figure and label it to make it look nice
+
+annotate_figure(
+  figure,
+  top = text_grob("Boxplots for Each of Quantative Variable by Gender ",
+                  color = "black", face = "bold", size = 14),
+  
+  left = text_grob("Quantative Variables",
+                   color = "black",face = "bold", rot = 90),
+  )
+```
+
+# Question 3
+>Use {ggplot} to make scatterplots of height and weight in relation to age. Do these variables seem to be related? In what way?
+
+We first write a function for scatterplot by ggplot
+```{r}
+scatter<-function(r){
+p <- ggplot(data=d, aes(x=age,y=r))
+# build a ggplot object
+P <- p + xlab("Age")
+p <- p + geom_point() 
+# make a scatterplot
+p <- p + geom_smooth(method="lm", fullrange=TRUE)
+#add a regression line 
+return (p)
+}
+```
+Then, we put in both height and weight and add x-axis label
+```{r,fig.height=4,fig.width=8}
+s1 <-scatter(d$height)+ylab("Height")
+s2 <-scatter(d$weight)+ylab("Weight")
+figure2 <- ggarrange(s1,s2,
+                    ncol = 2, nrow = 1)
+# use this unction to combine 2 ggplot into one figure and label it to make it look nice
+
+annotate_figure(
+  figure2,
+  top = text_grob("Scatterplots for Height and Weight in Relation to Age ",
+                  color = "black", face = "bold", size = 14),
+  
+
+  )
+```
+
+The height and age seems to have a positive linear relationship based on the regression line. However, the weight and age's relationship is ambigious since there are a lot of outliers from the regression curve.   
+
+# Question 4
+>Using histograms and Q-Q plots, check whether the quantitative variables seem to be drawn from a normal distribution. Which seem to be and which do not (hint: not all are drawn from the normal distribution)? For those that are not normal, can you determine from which common distribution they are drawn?
+
+First, we build function for histogram with a normal distribution curve, and a Q-Q plot.
+```{r}
+his<- function(r){
+  lamda<-mean(r)
+  #caulcated the mean of data
+  pop_se<-psd(r)
+  #calculated the standard deviation of data
+  h<-curve(dnorm(x, 0, 1), -5, 5, ylim = c(0, 0.8))
+  #build the graph of normal distrivution curve of z-score -5 to +5
+  
+  z_score<- function(x){
+    z <-(x-lamda )/pop_se
+    return (z)}
+  #build a function to calculate z score
+  
+  z <-lapply(r,z_score )
+  #use lapply to calculate z score for all data
+  z<-as.numeric(z)
+  #histogram need x to be numeric. change z from a list to numeric 
+  hist(z, breaks = seq(from = -5, to = 5, length.out = 20), probability = TRUE, 
+    add = TRUE)
+  #add the histogram of z score 
+  return (h)
+  #return histogram
+  }
+  
+qq<-function(r){  
+  l<-qqnorm(r)
+  #draw qq plot of data
+  qqline(r)
+  #draw the line of normal distrbution
+  return (l)
+  #return qq plot.
+  }
+
+```
+
+For Height,weight and ages, both histogram and Q-Q plots shows a normal distribution
+```{r,fig.height=12,fig.width=8}
+attach(d)
+#attach() to use par() function
+
+par(mfrow=c(3,2))
+#set a panel of 3 rows and 2 columns
+h1<-his(height)
+q1<-qq(height)
+#draw for height
+h2<-his(weight)
+q2<-qq(weight)
+#draw for weight
+h5<-his(age)
+q5<-qq(age)
+#draw for age
+```
+
+
+For the number of zombies they killed and the years of education, although it looks like a normal distribution on histogram, it is not normal distrbution based on the Q-Q plot. Since the similiarity on histograms, i think those two variable might be Poisson Distribution.
+
+```{r,fig.height=8,fig.width=8}
+par(mfrow=c(2,2))
+#set teh panel of 2 rows and 2 columns
+h3<-his(zombies_killed)
+q3<-qq(zombies_killed)
+#draw for zombies killed
+h4<-his(years_of_education)
+q4<-qq(years_of_education)
+#draw for years of education
+
+detach(d)
+#need detach for attach()
+```
+
+
+# Question 5
+>Now use the sample() function to sample ONE subset of 30 zombie survivors (without replacement) from this population and calculate the mean and sample standard deviation for each variable. Also estimate the standard error for each variable, and construct the 95% confidence interval for each mean. Note that for the variables that are not drawn from the normal distribution, you may need to base your estimate of the CIs on slightly different code than for the normal…
+
+We first build functions to select sample and calculate the data.
+```{r}
+#version for normal distribution.
+select_n<- function(r){
+  x<-sample(r, 30, replace = FALSE)
+  #select 30 sample.
+  m<-mean(x)
+  #take the mean
+  sd<-sd(x)
+  #take the standard deviation
+  ste<-sd(x)/sqrt(length(x))
+  #take the standard error
+  lower <- m - qnorm(1 - 0.05/2) * ste  # (1-alpha)/2 each in the upper and lower tails of the distribution
+  upper <- m + qnorm(1 - 0.05/2) * ste  # (1-alpha)/2 each in the upper and lower tails of the distribution
+  ci <- c(lower, upper)
+  #take the 95% confidence interval
+  v<-c(m, sd, ste,ci)
+  #build a vector to store those calculation
+  return (v)
+  #return the vector
+}
+
+#version for Poisson distribution.
+select_p<- function(r){
+  x<-sample(r, 30, replace = FALSE)
+  #select 30 sample.
+  m<-mean(x)
+  #take the mean
+  sd<-sd(x)
+  #take the standard deviation
+  ste<-sd(x)/sqrt(length(x))
+  #take the standard error
+  lower <- m - qpois(1 - 0.05/2, m) * ste  # (1-alpha)/2 each in the upper and lower tails of the distribution
+  upper <- m + qpois(1 - 0.05/2, m) * ste  # (1-alpha)/2 each in the upper and lower tails of the distribution
+  ci <- c(lower, upper)
+  #take the 95% confidence interval
+  v<-c(m,sd,ste,ci)
+  #build a vector to store those calculation
+  return (v)
+  #return the vector
+}
+```
+
+Then, we do calculation on each variable:
+```{r}
+v1<-select_n(d$height)
+v2<-select_n(d$weight)
+v3<-select_p(d$zombies_killed)
+v4<-select_p(d$years_of_education)
+v5<-select_n(d$age)
+#calculate each of variables and save the values in vector
+t<-rbind(v1,v2,v3,v4,v5)
+#combine vector as table
+rownames(t)<-c("Height","Weight","Zombies killed","Years of education","Age")
+#name row by the data
+colnames(t)<-c("Mean","Standard deviation","Standard Error","95% confidence interval lower bound","Higher bound")
+#name column as the sequence in function
+t
+```
+
+Like the first question, to make table look nice, we can do datatable()
+```{r}
+library(DT)
+datatable(t)
+```
+
+
+# Question 6
+>a.Now draw 99 more random samples of 30 zombie apocalypse survivors, and calculate the mean for each variable for each of these samples. Together with the first sample you drew, you now have a set of 100 means for each variable (each based on 30 observations), which constitutes a sampling distribution for each variable. What are the means and standard deviations of this distribution of means for each variable? How do the standard deviations of means compare to the standard errors estimated in [5]? 
+
+First, we can use previous unction to select for the sample with small change.
+```{r}
+select<- function(r){
+  x<-sample(r, 30, replace = FALSE)
+  #select 30 sample.
+  m<-mean(x)
+  #take the mean
+  return(m)
+}
+```
+
+Function to take 100 times more and calculate the mean and standard deviation
+```{r}
+select_100<-function(r){
+x <- NULL
+for (i in 1:100) {
+    x[i] <- select(r)}
+  # take select function 100 times
+  m<-mean(x)
+  #caulcated mean
+  sd<-psd(x)
+  #calculate standard deviation
+  v<-c(m,sd)
+  #use vector to collect
+  return(v)
+}
+```
+
+
+Then, we calculated for those 5 variables
+```{r}
+v1<-select_100(d$height)
+v2<-select_100(d$weight)
+v3<-select_100(d$zombies_killed)
+v4<-select_100(d$years_of_education)
+v5<-select_100(d$age)
+#select and calculate
+table2<-rbind(v1,v2,v3,v4,v5)
+#combine result into table
+
+rownames(table2)<-c("Height","Weight","Zombies killed","Years of education","Age")
+#name row by the data
+colnames(table2)<-c("Mean","Standard deviation")
+table2
+```
+
+Let's recall the first Table with this table
+```{r}
+library(DT)
+datatable(table1)
+datatable(table2)
+```
+
+
+
+As we can see, the Means are really similar to the mean of poplution. The standard deviation is much less then the population deviation for all of them, but is similar to the standard error we calculated in question 5. 
+
+
+>b.What do these sampling distributions look like (a graph might help here)? Are they normally distributed? What about for those variables that you concluded were not originally drawn from a normal distribution?
+
+Use previous function with slightly changes
+```{r}
+select_f<-function(r){
+x <- NULL
+for (i in 1:100) {
+    x[i] <- select(r)}
+  # take select function 100 times
+   return(x)
+}
+```
+
+Draw the graph for them
+```{r,fig.height=8,fig.width=12}
+par(mfrow=c(2,3))
+h1<-select_f(d$height)
+h1f<-his(h1)
+h2<-select_f(d$weight)
+h2f<-his(h2)
+h3<-select_f(d$zombies_killed)
+h3f<-his(h3)
+h4<-select_f(d$years_of_education)
+h4f<-his(h4)
+h5<-select_f(d$age)
+h5f<-his(h5)
+#draw histogram use previous function his()
+```
+
+```{r,fig.height=8,fig.width=12}
+par(mfrow=c(2,3))
+q1<-qq(h1)
+q2<-qq(h2)
+q3<-qq(h3)
+q4<-qq(h4)
+q5<-qq(h5)
+#draw q-q plot use preivious function qq() 
+```
+
+
+From the graph, It might hard to determine if they are normal distribution or not. I tried 1000 times of sample and so the graph again, all of them have normal distribution, even the poplution are not normal distribution. 
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 5 Chanllenge
+1. I use a lot of time try to combine the function togther so that i only need to call function once. It worth it though.
+2. I also use some time to make my data as a table and try to display it nicely. I learn to use kable() in package knitr and datatable() at package DT.
+3. It is hard to display a lot of function nicely. I tried ggarrange() from ggpubr package. Also, the par(). Par() cannot be use for ggplot.
+4. I learn from the offcie hour how to manipulate the figure's height and width to make it looks nicely.
+5. It do take a lot of time to do the whole homewrok.
